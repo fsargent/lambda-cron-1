@@ -59,9 +59,52 @@ MediaMath&#39;s Financial Platform is really into AWS and loves trying new servi
 
 Here&#39;s an example of how to use LambdaCron to trigger an AWS Batch job. This is an AWS Batch job definition used by FINP to run reports:
 
+```json
+{
+    "jobDefinitionName": "vendor-reports-prod",
+    "type": "container",
+    "containerProperties": {
+        "image": "438025690015.dkr.ecr.us-east-1.amazonaws.com/db-refresh:prod",
+        "jobRoleArn": "arn:aws:iam::438025690015:role/db-refresh-prod-role",
+        "vcpus": 1,
+        "memory": 512,
+        "environment": [
+            {
+                "name": "CATEGORY",
+                "value": "prod"
+            },
+            {
+                "name": "AWS_DEFAULT_REGION",
+                "value": "us-east-1"
+            }
+        ],
+        "command": [
+            "./vendor_reports/vendor-reports.py",
+            "Ref::period",
+            "Ref::report_type",
+            "--queue-name=preakness-prod"
+        ]
+    }
+}
+```
+
 This job is used to run weekly and monthly reports so we want to schedule this job to run weekly and/or monthly. A container is running a python program which receives three arguments, two of those arguments (Ref::period, Ref::report\_type) are parameters that must be passed when submitting the job.
 
 This is a LambdaCron task definition to run the monthly report:
+
+```yaml
+name: vendor_reports_monthly
+expression: '0 17 5 * *'
+task:
+  type: 'batch'
+  jobName: 'vendor-reports-prod-monthly'
+  jobQueue: 'dc-batch-queue-low-prod'
+  jobDefinition: 'vendor-reports-prod'
+  parameters:
+    report_type: '--monthly'
+    period: '--last-month'
+```
+
 
 The job is scheduled to run at 5 pm on the fifth of every month. The  **type**  of the task is specified inside the key  **task,** along with parameters required by AWS Batch API to submit a job. After defining the task, it is uploaded to LambdaCron using LambdaCron CLI.
 
